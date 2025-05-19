@@ -25,7 +25,7 @@ jobs:
 
       - name: Build xgrammar from source
         run: |
-          xmake f --XGRAMMAR_BUILD_CXX_TESTS=yes -y && xmake -y
+          xmake f --XGRAMMAR_BUILD_CXX_TESTS=yes --XGRAMMAR_BUILD_PYTHON_BINDINGS=yes -y && xmake -y
 
       - name: Run C++ tests
         run: |
