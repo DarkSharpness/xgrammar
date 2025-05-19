@@ -28,6 +28,9 @@ target("xgrammar")
 
 if has_config("XGRAMMAR_BUILD_CXX_TESTS") then
     target("test")
+        if is_plat("windows") then
+            add_ldflags("/subsystem:console")
+        end
         set_kind("binary")
         add_includedirs("3rdparty/picojson")
         add_includedirs("cpp", {public = true})
