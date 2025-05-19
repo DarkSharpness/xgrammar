@@ -1,14 +1,16 @@
-add_requires("dlpack 1.1", "nanobind v2.5.0")
-add_requires("gtest 1.16.0", {configs = {main = true}})
-
-add_rules("mode.debug", "mode.release")
-
 option("XGRAMMAR_BUILD_PYTHON_BINDINGS", {
     default = true, description = "Build Python bindings"
 })
 option("XGRAMMAR_BUILD_CXX_TESTS", {
     default = false, description = "Build C++ tests"
 })
+
+add_requires("dlpack 1.1", "nanobind v2.5.0")
+add_rules("mode.debug", "mode.release")
+
+if has_config("XGRAMMAR_BUILD_CXX_TESTS") then
+    add_requires("gtest 1.16.0", {configs = {main = true}})
+end
 
 set_languages("c++17")
 
