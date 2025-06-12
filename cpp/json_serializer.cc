@@ -23,9 +23,12 @@ namespace xgrammar {
 
 static rapidjson::Value JSONSerialize(const CompiledGrammar::Impl& impl) {
   auto result = rapidjson::Value(rapidjson::kObjectType);
-  result["grammar"] = AutoJSONSerialize(*impl.grammar);
-  result["tokenizer_metadata"] = AutoJSONSerialize(*impl.tokenizer_info);
-  result["adaptive_token_mask_cache"] = AutoJSONSerialize(impl.adaptive_token_mask_cache);
+  auto& alloc = xgrammar_json_allocator();
+  result.AddMember("grammar", AutoJSONSerialize(*impl.grammar), alloc);
+  result.AddMember("tokenizer_metadata", AutoJSONSerialize(*impl.tokenizer_info), alloc);
+  result.AddMember(
+      "adaptive_token_mask_cache", AutoJSONSerialize(impl.adaptive_token_mask_cache), alloc
+  );
   return result;
 }
 

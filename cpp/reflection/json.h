@@ -35,7 +35,7 @@ inline rapidjson::Value TraitJSONSerialize(const T& value) {
       obj.MemberReserve(Functor::member_count, alloc);
       // obj.reserve(Functor::member_count);
       details::visit_config<T>([&](auto ptr, const char* name, std::size_t idx) {
-        obj[name] = AutoJSONSerialize(value.*ptr);
+        obj.AddMember(rapidjson::StringRef(name), AutoJSONSerialize(value.*ptr), alloc);
       });
       return obj;
     } else if constexpr (Functor::member_count == 1) {

@@ -30,7 +30,7 @@ inline std::string serialize_json(const rapidjson::Value& obj) {
 inline rapidjson::Value deserialize_string(const std::string& json) {
   rapidjson::Document doc;
   XGRAMMAR_CHECK(!doc.Parse(json).HasParseError()) << "JSON parse error: " << doc.GetParseError();
-  return rapidjson::Value(doc, doc.GetAllocator());
+  return rapidjson::Value(doc, xgrammar_document().GetAllocator());
 }
 
 }  // namespace xgrammar

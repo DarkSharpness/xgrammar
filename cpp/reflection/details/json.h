@@ -72,7 +72,7 @@ inline const rapidjson::Value& json_member(
     rapidjson::Value::ConstObject value, const std::string& name
 ) {
   auto it = value.FindMember(name);
-  XGRAMMAR_CHECK(it != value.MemberEnd()) << "Missing member in JSONDeserialize";
+  XGRAMMAR_CHECK(it != value.MemberEnd()) << "Missing member in JSONDeserialize: " << name;
   return it->value;
 }
 

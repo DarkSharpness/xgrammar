@@ -254,7 +254,7 @@ class DynamicBitset {
         }
       }
     }
-    while (!result.Empty() && result[result.Size() - 1].GetInt() >= size_) {
+    while (result.Size() > HEADER && result[result.Size() - 1].GetInt() >= size_) {
       result.PopBack();
     }
     return result;
@@ -263,7 +263,7 @@ class DynamicBitset {
   friend void JSONDeserialize(DynamicBitset& bitset, const rapidjson::Value& value) {
     const auto& arr = value.GetArray();
     XGRAMMAR_CHECK(arr.Size() >= HEADER) << "Invalid JSON value for DynamicBitset";
-    const bool is_zero = arr[0].GetInt();
+    const bool is_zero = arr[0].GetInt() == 0;
     const int count = arr[1].GetInt();
     const int size = arr[2].GetInt();
     const int buffer_size = arr[3].GetInt();
