@@ -63,7 +63,7 @@ struct has_json_deserialize_global<
 };
 
 template <typename T>
-inline const T& json_as(const rapidjson::Value& value) {
+inline T json_as(const rapidjson::Value& value) {
   XGRAMMAR_CHECK(value.Is<T>()) << "Wrong type in JSONDeserialize";
   return value.Get<T>();
 }
