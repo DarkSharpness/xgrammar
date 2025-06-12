@@ -4,6 +4,8 @@
  */
 #include "fsm.h"
 
+#include <rapidjson/document.h>
+
 #include <algorithm>
 #include <bitset>
 #include <cassert>
@@ -21,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "picojson.h"
 #include "reflection/json.h"
 #include "reflection/reflection.h"
 #include "support/encoding.h"
@@ -1418,9 +1419,9 @@ FSMWithStartEnd CompactFSMWithStartEnd::ToFSM() const {
   return FSMWithStartEnd(fsm_.ToFSM(), start_, ends_);
 }
 
-picojson::value CompactFSM::JSONSerialize() const { return AutoJSONSerialize(**this); }
+rapidjson::Value CompactFSM::JSONSerialize() const { return AutoJSONSerialize(**this); }
 
-void JSONDeserialize(CompactFSM& fsm, const picojson::value& v) {
+void JSONDeserialize(CompactFSM& fsm, const rapidjson::Value& v) {
   return AutoJSONDeserialize(*fsm, v);
 }
 

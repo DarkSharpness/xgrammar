@@ -1,51 +1,55 @@
 #pragma once
+#include <rapidjson/document.h>
+
 #include <cstddef>
 #include <type_traits>
 
+#include "../support/json_allocator.h"
 #include "../support/logging.h"
 #include "details/json.h"  // IWYU pragma: export
-#include "picojson.h"
 #include "reflection.h"
 #include "utils.h"
 
 namespace xgrammar {
 
 template <typename T>
-inline picojson::value AutoJSONSerialize(const T& value);
+inline rapidjson::Value AutoJSONSerialize(const T& value);
 
 template <typename T>
-inline void AutoJSONDeserialize(T& result, const picojson::value& value);
+inline void AutoJSONDeserialize(T& result, const rapidjson::Value& value);
 
 template <typename T>
-inline picojson::value TraitJSONSerialize(const T& value);
+inline rapidjson::Value TraitJSONSerialize(const T& value);
 
 template <typename T>
-inline void TraitJSONDeserialize(T& result, const picojson::value& value);
+inline void TraitJSONDeserialize(T& result, const rapidjson::Value& value);
 
 template <typename T>
-inline picojson::value TraitJSONSerialize(const T& value) {
+inline rapidjson::Value TraitJSONSerialize(const T& value) {
   using Functor = details::member_functor<T>;
+  auto& alloc = xgrammar_json_allocator();
   if constexpr (Functor::value == member_type::kConfig) {
     if constexpr (Functor::has_names) {
       // normal named struct
-      picojson::object obj;
-      obj.reserve(Functor::member_count);
+      rapidjson::Value obj(rapidjson::kObjectType);
+      obj.MemberReserve(Functor::member_count, alloc);
+      // obj.reserve(Functor::member_count);
       details::visit_config<T>([&](auto ptr, const char* name, std::size_t idx) {
         obj[name] = AutoJSONSerialize(value.*ptr);
       });
-      return picojson::value(std::move(obj));
+      return obj;
     } else if constexpr (Functor::member_count == 1) {
       // optimize for single member unnamed structs
       constexpr auto member_ptr = std::get<0>(Functor::members);
       return AutoJSONSerialize(value.*member_ptr);
     } else {
       // normal unnamed struct
-      picojson::array arr;
-      arr.resize(Functor::member_count);
+      rapidjson::Value arr(rapidjson::kArrayType);
+      arr.Reserve(Functor::member_count, alloc);
       details::visit_config<T>([&](auto ptr, const char* name, std::size_t idx) {
-        arr[idx] = AutoJSONSerialize(value.*ptr);
+        arr.PushBack(AutoJSONSerialize(value.*ptr), alloc);
       });
-      return picojson::value(std::move(arr));
+      return arr;
     }
   } else if constexpr (Functor::value == member_type::kDelegate) {
     // just cast to the delegate type
@@ -53,20 +57,21 @@ inline picojson::value TraitJSONSerialize(const T& value) {
   } else {
     // should give an error in this case
     static_assert(details::false_v<T>, "Invalid trait type");
-    return picojson::value{};
+    return rapidjson::Value{};
   }
 }
 
 template <typename T>
-inline void TraitJSONDeserialize(T& result, const picojson::value& value) {
+inline void TraitJSONDeserialize(T& result, const rapidjson::Value& value) {
   using Functor = details::member_functor<T>;
   if constexpr (Functor::value == member_type::kConfig) {
     if constexpr (Functor::has_names) {
       // normal named struct
-      const auto& obj = details::json_as<picojson::object>(value);
-      XGRAMMAR_CHECK(obj.size() == Functor::member_count)
+      XGRAMMAR_CHECK(value.IsObject()) << "Expected an object in JSONDeserialize";
+      auto obj = details::json_as<rapidjson::Value::ConstObject>(value);
+      XGRAMMAR_CHECK(obj.MemberCount() == Functor::member_count)
           << "Wrong number of members in object in JSONDeserialize" << " expected "
-          << Functor::member_count << " but got " << obj.size();
+          << Functor::member_count << " but got " << obj.MemberCount();
       details::visit_config<T>([&](auto ptr, const char* name, std::size_t idx) {
         AutoJSONDeserialize(result.*ptr, details::json_member(obj, name));
       });
@@ -76,10 +81,10 @@ inline void TraitJSONDeserialize(T& result, const picojson::value& value) {
       AutoJSONDeserialize(result.*member_ptr, value);
     } else {
       // normal unnamed struct
-      const auto& arr = details::json_as<picojson::array>(value);
-      XGRAMMAR_CHECK(arr.size() == Functor::member_count)
+      auto arr = details::json_as<rapidjson::Value::ConstArray>(value);
+      XGRAMMAR_CHECK(arr.Size() == Functor::member_count)
           << "Wrong number of elements in array in JSONDeserialize" << " expected "
-          << Functor::member_count << " but got " << arr.size();
+          << Functor::member_count << " but got " << arr.Size();
       details::visit_config<T>([&arr, &result](auto ptr, const char* name, size_t idx) {
         AutoJSONDeserialize(result.*ptr, arr[idx]);
       });
@@ -96,59 +101,63 @@ inline void TraitJSONDeserialize(T& result, const picojson::value& value) {
 }
 
 template <typename T>
-inline picojson::value AutoJSONSerialize(const T& value) {
+inline rapidjson::Value AutoJSONSerialize(const T& value) {
   // always prefer user-defined JSONSerialize
   if constexpr (details::has_json_serialize_member<T>::value) {
     return value.JSONSerialize();
   } else if constexpr (details::has_json_serialize_global<T>::value) {
     return JSONSerialize(value);
   } else if constexpr (std::is_same_v<T, bool>) {
-    return picojson::value(value);
+    return rapidjson::Value(value);
   } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
-    return picojson::value(static_cast<int64_t>(value));
+    return rapidjson::Value(static_cast<int64_t>(value));
   } else if constexpr (std::is_floating_point_v<T>) {
-    return picojson::value(static_cast<double>(value));
+    return rapidjson::Value(static_cast<double>(value));
   } else if constexpr (std::is_same_v<T, std::string>) {
-    return picojson::value(value);
+    auto& alloc = xgrammar_json_allocator();
+    return rapidjson::Value(value, alloc);
   } else if constexpr (details::is_optional<T>::value) {
     if (value.has_value()) {
       return AutoJSONSerialize(*value);
     } else {
-      return picojson::value{};
+      return rapidjson::Value();
     }
   } else if constexpr (details::is_vector<T>::value) {
-    picojson::array arr;
-    arr.reserve(value.size());
+    auto& alloc = xgrammar_json_allocator();
+    rapidjson::Value arr(rapidjson::kArrayType);
+    arr.Reserve(value.size(), alloc);
     for (const auto& item : value) {
-      arr.push_back(AutoJSONSerialize(item));
+      arr.PushBack(AutoJSONSerialize(item), alloc);
     }
-    return picojson::value(std::move(arr));
+    return arr;
   } else if constexpr (details::is_unordered_set<T>::value) {
-    picojson::array arr;
-    arr.reserve(value.size());
+    auto& alloc = xgrammar_json_allocator();
+    rapidjson::Value arr(rapidjson::kArrayType);
+    arr.Reserve(value.size(), alloc);
     for (const auto& item : value) {
-      arr.push_back(AutoJSONSerialize(item));
+      arr.PushBack(AutoJSONSerialize(item), alloc);
     }
-    return picojson::value(std::move(arr));
+    return arr;
   } else if constexpr (details::is_unordered_map<T>::value) {
-    picojson::array arr;
-    arr.reserve(value.size() * 2);
+    auto& alloc = xgrammar_json_allocator();
+    rapidjson::Value arr(rapidjson::kArrayType);
+    arr.Reserve(value.size() * 2, alloc);
     for (const auto& [key, item] : value) {
-      arr.push_back(AutoJSONSerialize(key));
-      arr.push_back(AutoJSONSerialize(item));
+      arr.PushBack(AutoJSONSerialize(key), alloc);
+      arr.PushBack(AutoJSONSerialize(item), alloc);
     }
-    return picojson::value(std::move(arr));
+    return arr;
   } else if constexpr (member_trait<T>::value != member_type::kNone) {
     return TraitJSONSerialize(value);
   } else {
     // should give an error in this case
     static_assert(details::false_v<T>, "Cannot serialize this type");
-    return picojson::value{};
+    return rapidjson::Value{};
   }
 }
 
 template <typename T>
-inline void AutoJSONDeserialize(T& result, const picojson::value& value) {
+inline void AutoJSONDeserialize(T& result, const rapidjson::Value& value) {
   static_assert(!std::is_const_v<T>, "Cannot deserialize into a const type");
   if constexpr (details::has_json_deserialize_member<T>::value) {
     result = T::JSONDeserialize(value);
@@ -163,34 +172,34 @@ inline void AutoJSONDeserialize(T& result, const picojson::value& value) {
   } else if constexpr (std::is_same_v<T, std::string>) {
     result = details::json_as<std::string>(value);
   } else if constexpr (details::is_optional<T>::value) {
-    if (value.is<picojson::null>()) {
+    if (value.IsNull()) {
       result.reset();
     } else {
       AutoJSONDeserialize(result.emplace(), value);
     }
   } else if constexpr (details::is_vector<T>::value) {
     result.clear();
-    const auto& arr = details::json_as<picojson::array>(value);
-    result.reserve(arr.size());
-    for (const auto& item : details::json_as<picojson::array>(value)) {
+    const auto& arr = details::json_as<rapidjson::Value::ConstArray>(value);
+    result.reserve(arr.Size());
+    for (const auto& item : arr) {
       auto& item_value = result.emplace_back();
       AutoJSONDeserialize(item_value, item);
     }
   } else if constexpr (details::is_unordered_set<T>::value) {
     result.clear();
-    const auto& arr = details::json_as<picojson::array>(value);
-    result.reserve(arr.size());
+    const auto& arr = details::json_as<rapidjson::Value::ConstArray>(value);
+    result.reserve(arr.Size());
     for (const auto& item : arr) {
       typename T::value_type item_value;
       AutoJSONDeserialize(item_value, item);
       result.emplace(std::move(item_value));
     }
   } else if constexpr (details::is_unordered_map<T>::value) {
-    const auto& arr = details::json_as<picojson::array>(value);
-    XGRAMMAR_CHECK(arr.size() % 2 == 0) << "Wrong number of elements in array in JSONDeserialize";
+    const auto& arr = details::json_as<rapidjson::Value::ConstArray>(value);
+    XGRAMMAR_CHECK(arr.Size() % 2 == 0) << "Wrong number of elements in array in JSONDeserialize";
     result.clear();
-    result.reserve(arr.size() / 2);
-    for (size_t i = 0; i < arr.size(); i += 2) {
+    result.reserve(arr.Size() / 2);
+    for (size_t i = 0; i < arr.Size(); i += 2) {
       // typename T::value_type item_value;
       typename T::key_type key_value;
       AutoJSONDeserialize(key_value, arr[i + 0]);

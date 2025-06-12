@@ -5,8 +5,6 @@
 #ifndef XGRAMMAR_SUPPORT_CSR_ARRAY_H_
 #define XGRAMMAR_SUPPORT_CSR_ARRAY_H_
 
-#include <picojson.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <vector>

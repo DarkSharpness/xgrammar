@@ -5,8 +5,6 @@
 
 #include "grammar_serializer.h"
 
-#include <picojson.h>
-
 #include "support/encoding.h"
 
 namespace xgrammar {

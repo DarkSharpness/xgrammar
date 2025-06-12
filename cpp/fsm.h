@@ -7,6 +7,7 @@
 #ifndef XGRAMMAR_FSM_H_
 #define XGRAMMAR_FSM_H_
 
+#include <rapidjson/fwd.h>
 #include <xgrammar/object.h>
 
 #include <algorithm>
@@ -18,7 +19,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "picojson.h"
 #include "reflection/reflection.h"
 #include "support/csr_array.h"
 
@@ -368,8 +368,8 @@ class CompactFSM {
    */
   FSM ToFSM() const;
 
-  picojson::value JSONSerialize() const;
-  friend void JSONDeserialize(CompactFSM& fsm, const picojson::value& v);
+  rapidjson::Value JSONSerialize() const;
+  friend void JSONDeserialize(CompactFSM& fsm, const rapidjson::Value& v);
 
   XGRAMMAR_DEFINE_PIMPL_METHODS(CompactFSM);
 };

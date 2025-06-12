@@ -1,8 +1,6 @@
 #ifndef XGRAMMAR_TOKENIZER_INTERNAL_H_
 #define XGRAMMAR_TOKENIZER_INTERNAL_H_
 
-#include <picojson.h>
-
 #include <cstdint>
 #include <string>
 #include <unordered_set>

@@ -1,7 +1,5 @@
 #ifndef XGRAMMAR_SERIALIZER_H_
 #define XGRAMMAR_SERIALIZER_H_
-#include <picojson.h>
-
 #include <string>
 
 #include "xgrammar/compiler.h"

@@ -1,5 +1,9 @@
 #include "json_serializer.h"
 
+#include <rapidjson/fwd.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
 #include <memory>
 #include <string>
 #include <tuple>
@@ -7,8 +11,8 @@
 
 #include "compiled_grammar_data_structure.h"
 #include "grammar_data_structure.h"  // IWYU pragma: keep
-#include "picojson.h"
 #include "reflection/json.h"
+#include "support/json_allocator.h"
 #include "support/logging.h"
 #include "tokenizer_info_impl.h"
 #include "xgrammar/compiler.h"
@@ -17,16 +21,16 @@
 
 namespace xgrammar {
 
-picojson::value CompiledGrammar::Impl::JSONSerialize() const {
-  auto result = picojson::object{};
-  result["grammar"] = AutoJSONSerialize(*grammar);
-  result["tokenizer_metadata"] = AutoJSONSerialize(*tokenizer_info);
-  result["adaptive_token_mask_cache"] = AutoJSONSerialize(adaptive_token_mask_cache);
-  return picojson::value(std::move(result));
+static rapidjson::Value JSONSerialize(const CompiledGrammar::Impl& impl) {
+  auto result = rapidjson::Value(rapidjson::kObjectType);
+  result["grammar"] = AutoJSONSerialize(*impl.grammar);
+  result["tokenizer_metadata"] = AutoJSONSerialize(*impl.tokenizer_info);
+  result["adaptive_token_mask_cache"] = AutoJSONSerialize(impl.adaptive_token_mask_cache);
+  return result;
 }
 
-void JSONDeserialize(CompiledGrammar::Impl& impl, const picojson::value& v) {
-  const auto& object = details::json_as<picojson::object>(v);
+static void JSONDeserialize(CompiledGrammar::Impl& impl, const rapidjson::Value& v) {
+  auto object = details::json_as<rapidjson::Value::ConstObject>(v);
   impl.grammar = Grammar{std::make_shared<Grammar::Impl>()};
   AutoJSONDeserialize(*impl.grammar, details::json_member(object, "grammar"));
   impl.tokenizer_info = TokenizerInfo{std::make_shared<TokenizerInfo::Impl>()};
@@ -38,35 +42,24 @@ void JSONDeserialize(CompiledGrammar::Impl& impl, const picojson::value& v) {
 }
 
 std::string JSONSerializer::SerializeGrammar(const Grammar& grammar, bool prettify) {
-  return AutoJSONSerialize(*grammar).serialize(prettify);
+  return serialize_json(AutoJSONSerialize(*grammar));
 }
 
 std::string JSONSerializer::SerializeTokenizerInfo(
     const TokenizerInfo& tokenizer_info, bool prettify
 ) {
-  // NOTE: this should be the same as the following function (except for prettify):
-  // return tokenizer_info.DumpMetadata();
-  return AutoJSONSerialize(*tokenizer_info).serialize(prettify);
+  return serialize_json(AutoJSONSerialize(*tokenizer_info));
 }
 
 std::string JSONSerializer::SerializeCompiledGrammar(
     const CompiledGrammar& compiled_grammar, bool prettify
 ) {
-  return AutoJSONSerialize(*compiled_grammar).serialize(prettify);
-}
-
-static picojson::value parse_string(const std::string& str) {
-  picojson::value v;
-  std::string err;
-  picojson::parse(v, str.begin(), str.end(), &err);
-  XGRAMMAR_CHECK(err.empty()) << "Failed to parse JSON: " << err;
-  return v;
+  return serialize_json(JSONSerialize(*compiled_grammar));
 }
 
 Grammar JSONSerializer::DeserializeGrammar(const std::string& str) {
-  auto v = parse_string(str);
   auto grammar = Grammar{std::make_shared<Grammar::Impl>()};
-  AutoJSONDeserialize(*grammar, v);
+  AutoJSONDeserialize(*grammar, deserialize_string(str));
   return grammar;
 }
 
@@ -75,9 +68,8 @@ TokenizerInfo JSONSerializer::DeserializeTokenizerInfo(
 ) {
   if (encoded_vocab.empty()) {
     // simply build a tokenizer info with only metadata
-    auto v = parse_string(str);
     auto tokenizer_info = TokenizerInfo{std::make_shared<TokenizerInfo::Impl>()};
-    AutoJSONDeserialize(*tokenizer_info, v);
+    AutoJSONDeserialize(*tokenizer_info, deserialize_string(str));
     return tokenizer_info;
   } else {
     // rebuild a complete tokenizer info with vocab
@@ -101,9 +93,8 @@ bool TokenizerInfo::Impl::operator==(const TokenizerInfo::Impl& other) const {
 CompiledGrammar JSONSerializer::DeserializeCompiledGrammar(
     const std::string& str, const TokenizerInfo& tokenizer_info
 ) {
-  auto v = parse_string(str);
   auto compiled_grammar = CompiledGrammar{std::make_shared<CompiledGrammar::Impl>()};
-  AutoJSONDeserialize(*compiled_grammar, v);
+  AutoJSONDeserialize(*compiled_grammar, deserialize_string(str));
   // compare the tokenizer info metadata
   XGRAMMAR_CHECK(*compiled_grammar->tokenizer_info == *tokenizer_info)
       << "The tokenizer info in the compiled grammar does not match the provided one.";

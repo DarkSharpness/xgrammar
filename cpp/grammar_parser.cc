@@ -5,8 +5,6 @@
 
 #include "grammar_parser.h"
 
-#include <picojson.h>
-
 #include <variant>
 
 #include "grammar_builder.h"
