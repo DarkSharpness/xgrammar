@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import sys
 from typing import Any, List, Tuple
@@ -104,12 +105,12 @@ def test_serialize_tokenizer_info():
     expected_json = (
         '{"vocab_type":1,"vocab_size":10,"add_prefix_space":true,'
         '"stop_token_ids":[0,1],"special_token_ids":[9],'
-        '"decoded_vocab":["1","212","a","A","b","���","-","aBc","abc"],'
-        '"sorted_decoded_vocab":[[6,"-"],[3,"A"],[2,"a"],[7,"aBc"],[8,"abc"],[4,"b"],[5,"���"]],'
+        '"decoded_vocab":["1","212","a","A","b","\\u00e4\\u00b8\\u0080","-","aBc","abc"],'
+        '"sorted_decoded_vocab":[[6,"-"],[3,"A"],[2,"a"],[7,"aBc"],[8,"abc"],[4,"b"],[5,"\\u00e4\\u00b8\\u0080"]],'
         '"trie_subtree_nodes_range":[1,2,5,4,5,6,7],'
         '"__VERSION__":"v2"}'
     )
-    assert json.loads(serialized) == expected_json
+    assert json.loads(serialized) == json.loads(expected_json)
 
 
 def test_serialize_tokenizer_info_roundtrip():
@@ -265,13 +266,15 @@ def test_serialize_compiled_grammar_with_hf_tokenizer():
 
     # Test functional equivalence
     test_json = '{"name": "John", "age": 30}'
-    token_ids = tokenizer.encode(test_json)
+    token_ids = tokenizer.encode(test_json)[1:]  # skip the initial BOS token
     matcher = xgr.GrammarMatcher(recovered_compiled_grammar)
     bitmask = xgr.allocate_token_bitmask(1, tokenizer_info.vocab_size)
 
     for token_id in token_ids:
         matcher.fill_next_token_bitmask(bitmask)
-        masked_token_ids = xgr.get_masked_tokens_from_bitmask(bitmask, tokenizer_info.vocab_size)
+        masked_token_ids = xgr.testing._get_masked_tokens_from_bitmask(
+            bitmask, tokenizer_info.vocab_size
+        )
         assert token_id not in masked_token_ids
         assert matcher.accept_token(token_id)
 
