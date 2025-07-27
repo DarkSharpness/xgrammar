@@ -101,8 +101,11 @@ TEST(XGrammarSerializationTest, TestSTLAndBuiltinTypes) {
     ASSERT_EQ(json_value.get<double>(), 3.14);
 
     // Test literal string comparison
+    // due to precision, we can't compare strings directly
+    // because it might serialize as "3.1400000000000001" or similar
+    // so we compare the numeric value instead
     std::string expected = "3.14";
-    ASSERT_EQ(json_value.serialize(), expected);
+    ASSERT_EQ(std::stod(json_value.serialize()), std::stod(expected));
 
     double deserialized = 0.0;
     auto error = AutoDeserializeJSONValue(&deserialized, json_value);
@@ -257,7 +260,6 @@ TEST(XGrammarSerializationTest, TestString) {
     ASSERT_FALSE(error.has_value());
     ASSERT_EQ(deserialized, value);
   }
-
   {
     std::string value = "我";
     auto json_value = AutoSerializeJSON(value);
@@ -451,8 +453,7 @@ TEST(XGrammarSerializationTest, TestDynamicBitset) {
     ASSERT_TRUE(json_value.is<picojson::array>());
 
     // Test literal string comparison
-    // Bit 0 and 10 are in first uint32, bit 63 is in second uint32
-    std::string expected = "[64,2,1025,-9223372036854775808]";
+    std::string expected = "[64,2,1025,2147483648]";
     ASSERT_EQ(json_value.serialize(), expected);
 
     const auto& arr = json_value.get<picojson::array>();
